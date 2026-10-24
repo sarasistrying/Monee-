@@ -1,0 +1,14 @@
+rules_version = '2';
+
+// Monee security rules
+// Paste this into: Firebase console → Firestore Database → Rules → Publish
+//
+// Meaning: you can only read or write inside users/{your own user id},
+// and only while you're logged in. Everything else is locked.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}
