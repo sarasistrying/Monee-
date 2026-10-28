@@ -1,101 +1,44 @@
-// AI receipt reader (Google Gemini)
+// AI receipt reader
+//
+// The app no longer talks to Gemini directly. It sends the picture to YOUR scanner server
+// (the "monee-scan" Cloudflare Worker), which holds the Gemini key secretly and checks
+// that the person is logged in. So no secret key is inside the app any more.
+//
+// Set the server's address in .env:
+//   EXPO_PUBLIC_SCAN_URL=https://monee-scan.your-name.workers.dev
+import { auth } from './firebase';
 import { EXPENSE_CATS, WALLETS } from './constants';
 
-// The key comes from the .env file in your project folder:
-//   EXPO_PUBLIC_GEMINI_API_KEY=your-key-here
-// ⚠️ For testing only. Before sharing the app, move this call to a backend.
-const GEMINI_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
-const GEMINI_MODEL = 'gemini-3.5-flash-lite'; // swap to 'gemini-3.8-flash' if it struggles
+const SCAN_URL = (process.env.EXPO_PUBLIC_SCAN_URL || '').replace(/\/+$/, '');
 
-const RECEIPT_PROMPT = `You read shopping receipts for an Indonesian money-tracking app.
-The picture is either a photo of a paper receipt or a screenshot of a digital one
-(GoPay, OVO, DANA, ShopeePay, Tokopedia, GrabFood, bank transfer, etc.).
-
-Rules:
-- All money is Indonesian Rupiah. Return plain integers: "Rp25.000" or "25,000" -> 25000.
-- "total" is the final amount actually paid, after discounts, tax and service.
-- "items" are the purchased products only. Skip subtotal, tax (PPN), discount, change (kembali) and payment lines.
-  If a line has a quantity, "price" is the line total for that item.
-- "date" is the purchase date as YYYY-MM-DD, or "" if you can't see it.
-- "category" is the single best fit from the allowed list.
-- "wallet": "E-wallet" for GoPay/OVO/DANA/ShopeePay/QRIS, "Bank" for debit/credit card or transfer, otherwise "Cash".
-- "paid_with": the payment method name exactly as printed (e.g. "GoPay", "OVO", "BCA Debit", "Tunai"), or "" if not shown.
-- If the picture is not a receipt, set is_receipt to false and leave the rest empty.`;
-
-const RECEIPT_SCHEMA = {
-  type: 'OBJECT',
-  properties: {
-    is_receipt: { type: 'BOOLEAN' },
-    store: { type: 'STRING' },
-    date: { type: 'STRING' },
-    total: { type: 'INTEGER' },
-    category: { type: 'STRING', enum: EXPENSE_CATS.map((c) => c.key) },
-    wallet: { type: 'STRING', enum: WALLETS.map((w) => w.key) },
-    paid_with: { type: 'STRING' },
-    items: {
-      type: 'ARRAY',
-      items: {
-        type: 'OBJECT',
-        properties: { name: { type: 'STRING' }, price: { type: 'INTEGER' } },
-        required: ['name', 'price'],
-      },
-    },
-  },
-  required: ['is_receipt', 'store', 'date', 'total', 'category', 'wallet', 'paid_with', 'items'],
-};
-
-// Sends the picture to Gemini and returns { store, date, total, category, wallet, paidWith, items }
+// Sends the picture to the scanner and returns { store, date, total, category, wallet, paidWith, items }
 export async function readReceiptWithAI(base64, mimeType = 'image/jpeg') {
-  if (!GEMINI_KEY) {
+  if (!SCAN_URL) {
     throw new Error(
-      'No API key found. Add EXPO_PUBLIC_GEMINI_API_KEY to your .env file, then restart with "npx expo start -c".'
+      'The scanner isn’t set up yet. Add EXPO_PUBLIC_SCAN_URL to your .env file, then restart with "npx expo start -c".'
     );
   }
+  const user = auth?.currentUser;
+  if (!user) throw new Error('Please log in to scan receipts.');
+
+  // A short-lived login token that proves to the server who you are (Firebase refreshes it automatically)
+  const token = await user.getIdToken();
 
   let res;
   try {
-    res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': GEMINI_KEY },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                { inline_data: { mime_type: mimeType, data: base64 } },
-                { text: RECEIPT_PROMPT },
-              ],
-            },
-          ],
-          generationConfig: {
-            responseMimeType: 'application/json',
-            responseSchema: RECEIPT_SCHEMA,
-            temperature: 0,
-          },
-        }),
-      }
-    );
+    res = await fetch(`${SCAN_URL}/scan`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ image: base64, mimeType }),
+    });
   } catch (e) {
-    throw new Error('Couldn’t reach the AI. Check your internet connection and try again.');
+    throw new Error('Couldn’t reach the scanner. Check your internet connection and try again.');
   }
 
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    if (res.status === 429) throw new Error('You’ve hit the free scan limit for now. Wait a minute (or until tomorrow) and try again.');
-    if (res.status === 400 || res.status === 403) {
-      throw new Error(`The AI rejected the request: ${json?.error?.message || 'check that your API key is correct.'}`);
-    }
-    throw new Error(json?.error?.message || `The AI returned an error (${res.status}).`);
-  }
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || `The scanner returned an error (${res.status}).`);
 
-  const text = (json?.candidates?.[0]?.content?.parts || []).map((p) => p.text || '').join('');
-  let data;
-  try {
-    data = JSON.parse(text.replace(/^```(json)?|```$/g, '').trim());
-  } catch (e) {
-    throw new Error('The AI’s answer couldn’t be read. Try a clearer picture.');
-  }
+  const data = body.data || {};
   if (!data.is_receipt) throw new Error('That doesn’t look like a receipt. Try another picture.');
 
   const items = (data.items || [])
