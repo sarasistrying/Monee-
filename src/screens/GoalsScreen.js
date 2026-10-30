@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, TouchableOpacity, ScrollView, Alert, Image, ActivityIndicator } from 'react-native';
+import { View, TouchableOpacity, ScrollView, Image, ActivityIndicator } from 'react-native';
+import { showAlert } from '../dialog';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Text, TextInput } from '../ui';
 import { C, GRADIENT, styles } from '../styles';
@@ -35,7 +36,7 @@ export default function GoalsScreen({ data, actions }) {
   const addGoal = () => {
     const value = parseAmount(target);
     if (!name.trim() || !value) {
-      Alert.alert('Oops', 'Give your goal a name and a target amount.');
+      showAlert('Oops', 'Give your goal a name and a target amount.');
       return;
     }
     let deadline = null;
@@ -68,7 +69,7 @@ export default function GoalsScreen({ data, actions }) {
     // The money for a goal is set aside inside one account, so check that account has enough
     const available = balances.byId[goal.accountId]?.available || 0;
     if (delta > 0 && delta > available) {
-      Alert.alert(
+      showAlert(
         'Not enough money',
         `${accountName(accounts, goal.accountId)} only has ${formatRp(available)} available. Add money to it first, or put in a smaller amount.`
       );
@@ -83,7 +84,7 @@ export default function GoalsScreen({ data, actions }) {
   };
 
   const confirmDelete = (goal) =>
-    Alert.alert(
+    showAlert(
       `Delete "${goal.name}"?`,
       goal.saved > 0 ? `The ${formatRp(goal.saved)} saved in it goes back to your balance.` : '',
       [
@@ -94,7 +95,7 @@ export default function GoalsScreen({ data, actions }) {
 
   // Long-press a goal for more options
   const goalMenu = (goal) =>
-    Alert.alert(goal.name, undefined, [
+    showAlert(goal.name, undefined, [
       { text: goal.image ? 'Change photo' : 'Add photo', onPress: () => changeGoalPhoto(goal) },
       ...(goal.image ? [{ text: 'Remove photo', onPress: () => actions.setGoalImage(goal.id, null) }] : []),
       { text: 'Delete goal', style: 'destructive', onPress: () => confirmDelete(goal) },

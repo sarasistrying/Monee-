@@ -1,6 +1,7 @@
 // The entry form (used by Add, Scan and Edit)
 import React, { useState } from 'react';
-import { View, TouchableOpacity, Alert } from 'react-native';
+import { View, TouchableOpacity } from 'react-native';
+import { showAlert } from './dialog';
 import { Text, TextInput } from './ui';
 import { C, styles } from './styles';
 import { Chip } from './components';
@@ -58,7 +59,7 @@ export default function TransactionForm({
   const save = () => {
     const value = typed || itemsTotal;
     if (!value) {
-      Alert.alert('Oops', 'Please enter an amount.');
+      showAlert('Oops', 'Please enter an amount.');
       return;
     }
     onSave({

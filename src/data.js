@@ -7,7 +7,7 @@
 //
 // The security rules (firestore.rules) make sure each person can only open their own users/{userId}.
 import { useEffect, useMemo, useState } from 'react';
-import { Alert } from 'react-native';
+import { showAlert } from './dialog';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   collection,
@@ -162,10 +162,15 @@ export function useMoneeData(uid) {
   const actions = useMemo(() => {
     const fail = (e) => {
       console.warn(e);
-      Alert.alert('Couldn’t save to the cloud', e.message);
+      showAlert('Couldn’t save to the cloud', e.message);
     };
     return {
-      saveTx: (tx) => setDoc(doc(txCol(uid), tx.id), withoutId(cleanTx(tx))).catch(fail),
+      saveTx: (tx) => {
+        const clean = cleanTx(tx);
+        // Safety net: never try to save a huge picture (the database allows max 1 MB per entry)
+        if (typeof clean.receiptUri === 'string' && clean.receiptUri.length > 700000) clean.receiptUri = null;
+        return setDoc(doc(txCol(uid), tx.id), withoutId(clean)).catch(fail);
+      },
       deleteTx: (id) => deleteDoc(doc(txCol(uid), id)).catch(fail),
       addGoal: (g) => setDoc(doc(goalCol(uid), g.id), withoutId(cleanGoal(g))).catch(fail),
       setGoalSaved: (id, saved) => updateDoc(doc(goalCol(uid), id), { saved }).catch(fail),

@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
-import { View, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { View, TouchableOpacity, ScrollView } from 'react-native';
+import { showAlert } from '../dialog';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Text } from '../ui';
 import { C, GRADIENT, styles } from '../styles';
@@ -65,7 +66,7 @@ export default function HomeScreen({ data, displayName, syncing, onEdit, onSetti
 
   const pin = (acc) => {
     if (acc.id === main.id) return;
-    Alert.alert(`Make ${acc.name} your main account?`, 'Your daily amount on Home will be worked out from it.', [
+    showAlert(`Make ${acc.name} your main account?`, 'Your daily amount on Home will be worked out from it.', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Make main', onPress: () => onPinAccount(acc.id) },
     ]);

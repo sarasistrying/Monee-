@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, TouchableOpacity, ScrollView, Alert, Image, ActivityIndicator } from 'react-native';
+import { View, TouchableOpacity, ScrollView, Image, ActivityIndicator, Platform } from 'react-native';
+import { showAlert } from '../dialog';
 import { Text } from '../ui';
 import * as ImagePicker from 'expo-image-picker';
 import { C, styles } from '../styles';
@@ -7,25 +8,41 @@ import TransactionForm from '../TransactionForm';
 import { matchAccount } from '../money';
 import { readReceiptWithAI } from '../ai';
 import { Camera, ImageIcon, PencilSimple, Receipt, Sparkle } from '../icons';
+import { shrinkImage } from '../images';
 
 export default function AddScreen({ mode, setMode, onSave, accounts, mainAccountId }) {
-  const [image, setImage] = useState(null); // { uri, base64, mimeType }
+  const [image, setImage] = useState(null); // { uri, base64, mimeType, thumb }
   const [aiState, setAiState] = useState('idle'); // idle | loading | done
   const [prefill, setPrefill] = useState(null);
   const [formKey, setFormKey] = useState(0);
   const imageUri = image?.uri;
 
   const useImage = (asset) => {
-    setImage({ uri: asset.uri, base64: asset.base64, mimeType: asset.mimeType || 'image/jpeg' });
+    // In a browser the picture sometimes comes as a "data:" link instead of base64, so take it from there
+    let base64 = asset.base64;
+    let mimeType = asset.mimeType;
+    const dataUrl = /^data:([^;]+);base64,(.*)$/.exec(asset.uri || '');
+    if (!base64 && dataUrl) {
+      mimeType = mimeType || dataUrl[1];
+      base64 = dataUrl[2];
+    }
+    setImage({ uri: asset.uri, base64, mimeType: mimeType || 'image/jpeg', thumb: null });
+
+    // Make a small copy of the receipt to save with the entry. The full photo can be several MB,
+    // which is too big for the database (max 1 MB per entry). The small copy also syncs to your other devices.
+    shrinkImage(asset.uri).then((thumb) =>
+      setImage((cur) => (cur && cur.uri === asset.uri ? { ...cur, thumb } : cur))
+    );
     setPrefill(null);
     setAiState('idle');
     setFormKey((k) => k + 1);
   };
 
   const takePhoto = async () => {
-    const perm = await ImagePicker.requestCameraPermissionsAsync();
+    // Browsers ask for the camera themselves, so only check permission on phones
+    const perm = Platform.OS === 'web' ? { granted: true } : await ImagePicker.requestCameraPermissionsAsync();
     if (!perm.granted) {
-      Alert.alert('Camera needed', 'Please allow camera access to scan paper receipts.');
+      showAlert('Camera needed', 'Please allow camera access to scan paper receipts.');
       return;
     }
     const result = await ImagePicker.launchCameraAsync({ quality: 0.6, base64: true });
@@ -45,7 +62,7 @@ export default function AddScreen({ mode, setMode, onSave, accounts, mainAccount
 
   const scanWithAI = async () => {
     if (!image?.base64) {
-      Alert.alert('Pick the picture again', 'Monee needs to reload this picture before the AI can read it.');
+      showAlert('Pick the picture again', 'Monee needs to reload this picture before the AI can read it.');
       return;
     }
     setAiState('loading');
@@ -58,7 +75,7 @@ export default function AddScreen({ mode, setMode, onSave, accounts, mainAccount
       setAiState('done');
     } catch (e) {
       setAiState('idle');
-      Alert.alert('Couldn’t read the receipt', e.message);
+      showAlert('Couldn’t read the receipt', e.message);
     }
   };
 
@@ -142,7 +159,9 @@ export default function AddScreen({ mode, setMode, onSave, accounts, mainAccount
             mainAccountId={mainAccountId}
             key={formKey}
             initial={prefill || undefined}
-            receiptUri={imageUri}
+            receiptUri={
+              image?.thumb || (Platform.OS !== 'web' && !String(imageUri).startsWith('data:') ? imageUri : null)
+            }
             showItems
             submitLabel="Save receipt"
             onSave={(t) => {

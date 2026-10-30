@@ -1,7 +1,6 @@
 // Small helper functions: money, dates and the spreadsheet export
-import { Alert, Share } from 'react-native';
-import * as Sharing from 'expo-sharing';
-import { File, Paths } from 'expo-file-system';
+import { Platform, Share } from 'react-native';
+import { showAlert } from './dialog';
 import { EXPENSE_CATS, INCOME_CATS, MONTHS } from './constants';
 
 // 25000 -> "Rp 25.000",  -5000 -> "−Rp 5.000"
@@ -51,7 +50,7 @@ export const catEmoji = (key) =>
 // Builds a CSV spreadsheet and opens the share menu
 export async function exportCsv(transactions, accounts = []) {
   if (!transactions.length) {
-    Alert.alert('Nothing to export yet', 'Add a few entries first.');
+    showAlert('Nothing to export yet', 'Add a few entries first.');
     return;
   }
   const esc = (v) => {
@@ -71,7 +70,23 @@ export async function exportCsv(transactions, accounts = []) {
   ]);
   const csv = [header, ...rows].map((r) => r.map(esc).join(',')).join('\n');
 
+  // On the website: download the file straight away
+  if (Platform.OS === 'web') {
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' }); // \uFEFF helps Excel read the Rp symbols
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `monee-export-${isoDay(new Date())}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    return;
+  }
+
   try {
+    // Loaded only on phones (these packages don't work in a browser)
+    const Sharing = require('expo-sharing');
+    const { File, Paths } = require('expo-file-system');
     const file = new File(Paths.cache, `monee-export-${isoDay(new Date())}.csv`);
     if (file.exists) file.delete();
     file.create();

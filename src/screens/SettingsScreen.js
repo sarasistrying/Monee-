@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native';
+import { View, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import { showAlert } from '../dialog';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Text, TextInput } from '../ui';
 import { C, GRADIENT, styles } from '../styles';
@@ -135,14 +136,14 @@ export default function SettingsScreen({
   const removeAccount = (acc) => {
     const used = usage(acc.id);
     if (used > 0) {
-      Alert.alert(
+      showAlert(
         `Can’t remove ${acc.name || 'this account'} yet`,
         `It still has ${used} entr${used === 1 ? 'y' : 'ies'} or goals in it. Move them to another account first (tap an entry to edit it), then try again.`
       );
       return;
     }
     if (accounts.length <= 1) {
-      Alert.alert('You need at least one account');
+      showAlert('You need at least one account');
       return;
     }
     setAccounts((list) => list.filter((a) => a.id !== acc.id));
@@ -176,7 +177,7 @@ export default function SettingsScreen({
   };
 
   const skipTutorial = () =>
-    Alert.alert('Skip setup?', 'You can set up your accounts and budget here in Settings any time.', [
+    showAlert('Skip setup?', 'You can set up your accounts and budget here in Settings any time.', [
       { text: 'Keep going', style: 'cancel' },
       { text: 'Skip', onPress: finish },
     ]);
@@ -189,13 +190,13 @@ export default function SettingsScreen({
   };
 
   const confirmLogout = () =>
-    Alert.alert('Log out?', 'Your data stays safe in your account. Log in again any time.', [
+    showAlert('Log out?', 'Your data stays safe in your account. Log in again any time.', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Log out', style: 'destructive', onPress: logout },
     ]);
 
   const confirmWipe = () =>
-    Alert.alert(
+    showAlert(
       'Delete all entries and goals?',
       'Your settings and accounts stay, but every entry and goal is erased. This can’t be undone.',
       [

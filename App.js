@@ -1,7 +1,8 @@
 // Monee: the main file. It decides which screen to show.
 // The screens and helpers live in the src/ folder.
 import React, { useEffect, useRef, useState } from 'react';
-import { View, TouchableOpacity, Alert, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
+import { View, TouchableOpacity, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
+import { showAlert } from './src/dialog';
 import { Text } from './src/ui';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -31,6 +32,7 @@ import GoalsScreen from './src/screens/GoalsScreen';
 import InsightsScreen from './src/screens/InsightsScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import WelcomeModal from './src/WelcomeModal';
+import { DialogHost } from './src/dialog';
 
 export default function App() {
   // Load Monee's fonts before showing anything
@@ -54,11 +56,15 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <SafeAreaView style={styles.safe} edges={['top']}>
+      <SafeAreaView style={[styles.safe, Platform.OS === 'web' && styles.webPage]} edges={['top']}>
         <StatusBar style="light" />
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <Root />
+          {/* On a computer screen, keep Monee phone-width in the middle */}
+          <View style={Platform.OS === 'web' ? styles.webFrame : { flex: 1 }}>
+            <Root />
+          </View>
         </KeyboardAvoidingView>
+        <DialogHost />
       </SafeAreaView>
     </SafeAreaProvider>
   );
@@ -120,7 +126,7 @@ function MainApp({ user }) {
     getLegacyData(user.uid).then((legacy) => {
       if (!legacy) return;
       const count = `${legacy.transactions.length} entries and ${legacy.goals.length} goals`;
-      Alert.alert(
+      showAlert(
         'Move your old data?',
         `This phone has ${count} from before you had an account. Move them into this account?`,
         [
@@ -129,8 +135,8 @@ function MainApp({ user }) {
             text: 'Move them',
             onPress: () =>
               importLegacyData(user.uid, legacy, data.profile)
-                .then(() => Alert.alert('Done!', `Moved ${count} into your account.`))
-                .catch((e) => Alert.alert('Couldn’t move the data', `${e.message}\n\nTry again next time you open the app.`)),
+                .then(() => showAlert('Done!', `Moved ${count} into your account.`))
+                .catch((e) => showAlert('Couldn’t move the data', `${e.message}\n\nTry again next time you open the app.`)),
           },
         ]
       );
@@ -159,7 +165,7 @@ function MainApp({ user }) {
   }
 
   const confirmDeleteTx = (id) =>
-    Alert.alert('Delete this entry?', 'This can’t be undone.', [
+    showAlert('Delete this entry?', 'This can’t be undone.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',

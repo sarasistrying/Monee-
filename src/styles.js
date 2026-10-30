@@ -343,6 +343,18 @@ export const styles = StyleSheet.create({
   highlight: { borderWidth: 2, borderColor: C.yellow },
   accountEditRow: { borderBottomWidth: 1, borderBottomColor: C.border, paddingVertical: 12, gap: 8 },
 
+  // Website: phone-width column in the middle of the screen
+  webPage: { backgroundColor: '#12203F' },
+  webFrame: {
+    flex: 1,
+    width: '100%',
+    maxWidth: 480,
+    alignSelf: 'center',
+    overflow: 'hidden',
+    backgroundColor: C.bg,
+    boxShadow: '0 0 60px rgba(0,0,0,0.35)',
+  },
+
   // Tab bar
   tabBar: {
     flexDirection: 'row',

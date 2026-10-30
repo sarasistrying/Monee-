@@ -1,37 +1,57 @@
 // All of Monee's icons in one place (Phosphor icons, free, MIT license: phosphoricons.com)
 // To change an icon, swap the name here and it changes everywhere in the app.
 import React from 'react';
-import {
-  // categories: money out
-  ForkKnife,
-  Coffee,
-  Motorcycle,
-  BookOpen,
-  GameController,
-  ShoppingBag,
-  DeviceMobile,
-  Gift,
-  Package,
-  // categories: money in
-  Money,
-  Envelope,
-  Briefcase,
-  Tag,
-  Sparkle,
-  // wallets
-  Wallet,
-  Bank,
-  // goals
-  Target,
-  Headphones,
-  Sneaker,
-  Laptop,
-  AirplaneTilt,
-  PiggyBank,
-} from 'phosphor-react-native';
+// Each icon is loaded on its own, so the app only includes the ~45 icons it uses
+// (not all 1,500 in the library). That keeps the website much smaller.
+import { AirplaneTilt } from 'phosphor-react-native/src/icons/AirplaneTilt';
+import { ArrowDown } from 'phosphor-react-native/src/icons/ArrowDown';
+import { ArrowUp } from 'phosphor-react-native/src/icons/ArrowUp';
+import { Bank } from 'phosphor-react-native/src/icons/Bank';
+import { BookOpen } from 'phosphor-react-native/src/icons/BookOpen';
+import { Briefcase } from 'phosphor-react-native/src/icons/Briefcase';
+import { CalendarBlank } from 'phosphor-react-native/src/icons/CalendarBlank';
+import { Camera } from 'phosphor-react-native/src/icons/Camera';
+import { CaretLeft } from 'phosphor-react-native/src/icons/CaretLeft';
+import { CaretRight } from 'phosphor-react-native/src/icons/CaretRight';
+import { ChartPieSlice } from 'phosphor-react-native/src/icons/ChartPieSlice';
+import { CheckCircle } from 'phosphor-react-native/src/icons/CheckCircle';
+import { ClockCounterClockwise } from 'phosphor-react-native/src/icons/ClockCounterClockwise';
+import { CloudArrowUp } from 'phosphor-react-native/src/icons/CloudArrowUp';
+import { Coffee } from 'phosphor-react-native/src/icons/Coffee';
+import { DeviceMobile } from 'phosphor-react-native/src/icons/DeviceMobile';
+import { Envelope } from 'phosphor-react-native/src/icons/Envelope';
+import { Export } from 'phosphor-react-native/src/icons/Export';
+import { ForkKnife } from 'phosphor-react-native/src/icons/ForkKnife';
+import { GameController } from 'phosphor-react-native/src/icons/GameController';
+import { Gear } from 'phosphor-react-native/src/icons/Gear';
+import { Gift } from 'phosphor-react-native/src/icons/Gift';
+import { Headphones } from 'phosphor-react-native/src/icons/Headphones';
+import { House } from 'phosphor-react-native/src/icons/House';
+import { Image } from 'phosphor-react-native/src/icons/Image';
+import { Laptop } from 'phosphor-react-native/src/icons/Laptop';
+import { Leaf } from 'phosphor-react-native/src/icons/Leaf';
+import { MagnifyingGlass } from 'phosphor-react-native/src/icons/MagnifyingGlass';
+import { Money } from 'phosphor-react-native/src/icons/Money';
+import { Motorcycle } from 'phosphor-react-native/src/icons/Motorcycle';
+import { Package } from 'phosphor-react-native/src/icons/Package';
+import { PencilSimple } from 'phosphor-react-native/src/icons/PencilSimple';
+import { PiggyBank } from 'phosphor-react-native/src/icons/PiggyBank';
+import { Plus } from 'phosphor-react-native/src/icons/Plus';
+import { PushPin } from 'phosphor-react-native/src/icons/PushPin';
+import { Receipt } from 'phosphor-react-native/src/icons/Receipt';
+import { ShoppingBag } from 'phosphor-react-native/src/icons/ShoppingBag';
+import { SignOut } from 'phosphor-react-native/src/icons/SignOut';
+import { Sneaker } from 'phosphor-react-native/src/icons/Sneaker';
+import { Sparkle } from 'phosphor-react-native/src/icons/Sparkle';
+import { Tag } from 'phosphor-react-native/src/icons/Tag';
+import { Target } from 'phosphor-react-native/src/icons/Target';
+import { Trash } from 'phosphor-react-native/src/icons/Trash';
+import { Wallet } from 'phosphor-react-native/src/icons/Wallet';
+import { Warning } from 'phosphor-react-native/src/icons/Warning';
+import { X } from 'phosphor-react-native/src/icons/X';
 import { C } from './styles';
 
-// The icons used for buttons and screens, re-exported so screens import from one place
+// The icons used for buttons and screens
 export {
   House,
   ClockCounterClockwise,
@@ -60,7 +80,7 @@ export {
   PushPin,
   CheckCircle,
   Wallet,
-} from 'phosphor-react-native';
+};
 
 const CATEGORY_ICONS = {
   Food: ForkKnife,
