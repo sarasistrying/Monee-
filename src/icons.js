@@ -20,7 +20,9 @@ import { CloudArrowUp } from 'phosphor-react-native/src/icons/CloudArrowUp';
 import { Coffee } from 'phosphor-react-native/src/icons/Coffee';
 import { DeviceMobile } from 'phosphor-react-native/src/icons/DeviceMobile';
 import { Envelope } from 'phosphor-react-native/src/icons/Envelope';
+import { Copy } from 'phosphor-react-native/src/icons/Copy';
 import { Export } from 'phosphor-react-native/src/icons/Export';
+import { Fire } from 'phosphor-react-native/src/icons/Fire';
 import { ForkKnife } from 'phosphor-react-native/src/icons/ForkKnife';
 import { GameController } from 'phosphor-react-native/src/icons/GameController';
 import { Gear } from 'phosphor-react-native/src/icons/Gear';
@@ -46,6 +48,8 @@ import { Sparkle } from 'phosphor-react-native/src/icons/Sparkle';
 import { Tag } from 'phosphor-react-native/src/icons/Tag';
 import { Target } from 'phosphor-react-native/src/icons/Target';
 import { Trash } from 'phosphor-react-native/src/icons/Trash';
+import { UserPlus } from 'phosphor-react-native/src/icons/UserPlus';
+import { Users } from 'phosphor-react-native/src/icons/Users';
 import { Wallet } from 'phosphor-react-native/src/icons/Wallet';
 import { Warning } from 'phosphor-react-native/src/icons/Warning';
 import { X } from 'phosphor-react-native/src/icons/X';
@@ -80,6 +84,10 @@ export {
   PushPin,
   CheckCircle,
   Wallet,
+  Fire,
+  Users,
+  UserPlus,
+  Copy,
 };
 
 const CATEGORY_ICONS = {

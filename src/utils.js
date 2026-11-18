@@ -104,3 +104,22 @@ export async function exportCsv(transactions, accounts = []) {
   }
   await Share.share({ message: csv });
 }
+
+// Copies text (like your Monee ID) so you can paste it to a friend.
+// Websites can copy straight away; on phones we open the share menu instead (no extra package needed).
+export async function copyText(text, label = 'Copied') {
+  if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
+    try {
+      await navigator.clipboard.writeText(text);
+      showAlert(`${label} copied`, `${text}\n\nPaste it to your friend so they can invite you.`);
+      return;
+    } catch (e) {
+      // fall through to showing it
+    }
+  }
+  if (Platform.OS !== 'web') {
+    await Share.share({ message: `Add me on Monee! My Monee ID is ${text}` }).catch(() => {});
+    return;
+  }
+  showAlert(label, text);
+}

@@ -5,10 +5,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Text, TextInput } from '../ui';
 import { C, GRADIENT, styles } from '../styles';
 import { EXPENSE_CATS } from '../constants';
-import { formatRp, newId, parseAmount } from '../utils';
+import { copyText, formatRp, newId, parseAmount } from '../utils';
 import { ACCOUNT_KINDS, DEFAULT_ACCOUNTS, MAX_ACCOUNTS } from '../money';
 import { friendlyAuthError } from './AuthScreen';
-import { AccountIcon, CategoryIcon, Export, Plus, PushPin, SignOut, X } from '../icons';
+import { AccountIcon, CategoryIcon, Copy, Export, Plus, PushPin, SignOut, X } from '../icons';
 import { Chip } from '../components';
 import Avatar from '../Avatar';
 import { pickSmallImage } from '../images';
@@ -361,6 +361,20 @@ export default function SettingsScreen({
               )}
             </View>
           </View>
+
+          {!!data.moneeId && (
+            <>
+              <Text style={styles.label}>Your Monee ID</Text>
+              <TouchableOpacity
+                style={[styles.idRow, { backgroundColor: C.skySoft, marginBottom: 0 }]}
+                onPress={() => copyText(data.moneeId, 'Your Monee ID')}
+              >
+                <Text style={styles.idCode}>{data.moneeId}</Text>
+                <Copy size={16} color={C.teal} weight="bold" />
+              </TouchableOpacity>
+              <Text style={[styles.muted, { marginTop: 4 }]}>Friends type this to invite you to a shared goal.</Text>
+            </>
+          )}
 
           <Text style={styles.label}>Your name</Text>
           <TextInput

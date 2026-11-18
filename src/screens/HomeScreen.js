@@ -7,8 +7,8 @@ import { C, GRADIENT, styles } from '../styles';
 import { SectionTitle, TxRow } from '../components';
 import { EXPENSE_CATS, FULL_MONTHS } from '../constants';
 import { daysInMonth, formatRp, inMonth, isoDay, sameDay } from '../utils';
-import { accountBalances, kindLabel } from '../money';
-import { AccountIcon, CategoryIcon, CloudArrowUp, PencilSimple, Plus, PushPin, Receipt, Warning } from '../icons';
+import { accountBalances, dailyStreak, kindLabel } from '../money';
+import { AccountIcon, CategoryIcon, CloudArrowUp, Fire, PencilSimple, Plus, PushPin, Receipt, Warning } from '../icons';
 import Avatar from '../Avatar';
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -59,6 +59,15 @@ export default function HomeScreen({ data, displayName, syncing, onEdit, onSetti
   else if (over) caption = `Over today’s amount. Tomorrow’s will be a little smaller.`;
   else caption = `Spent ${formatRp(s.spentTodayMain)} of ${formatRp(allowance)} today`;
 
+  // Days in a row you stayed within the daily amount (see dailyStreak in money.js)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const streak = useMemo(() => dailyStreak(data), [data, todayKey]);
+  const showStreak = () =>
+    showAlert(
+      streak.current > 0 ? `${streak.current}-day streak!` : 'Start a streak',
+      `A day counts when you spend no more than that day’s amount from ${main.name}. Days with no spending count too, but going over starts it again from 0.\n\nYour best: ${streak.best} ${streak.best === 1 ? 'day' : 'days'}.`
+    );
+
   const warnings = EXPENSE_CATS.filter(
     (c) => data.budgets[c.key] > 0 && (s.catSpent[c.key] || 0) >= 0.8 * data.budgets[c.key]
   );
@@ -99,6 +108,14 @@ export default function HomeScreen({ data, displayName, syncing, onEdit, onSetti
             </View>
           </TouchableOpacity>
           {syncing && <CloudArrowUp size={20} color={C.sky} />}
+          <TouchableOpacity
+            onPress={showStreak}
+            style={[styles.streakPill, streak.current === 0 && { opacity: 0.75 }]}
+            accessibilityLabel={`Streak: ${streak.current} days`}
+          >
+            <Fire size={18} color={streak.current > 0 ? '#FFB547' : C.sky} weight="fill" />
+            <Text style={styles.streakText}>{streak.current}</Text>
+          </TouchableOpacity>
         </View>
 
         <Text style={styles.heroKicker} numberOfLines={1}>

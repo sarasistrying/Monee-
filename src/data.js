@@ -4,20 +4,28 @@
 //   users/{userId}                      ← profile (name, monthly budget) + category budgets
 //   users/{userId}/transactions/{txId}  ← one document per entry
 //   users/{userId}/goals/{goalId}       ← one document per goal
+//   sharedGoals/{goalId}                ← goals you save for together with friends (see the shared-goal actions below)
+//   codes/{MONEEID}                     ← your short Monee ID, so friends can find you (see moneeId.js)
 //
 // The security rules (firestore.rules) make sure each person can only open their own users/{userId}.
 import { useEffect, useMemo, useState } from 'react';
 import { showAlert } from './dialog';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
+  arrayRemove,
+  arrayUnion,
   collection,
   deleteDoc,
+  deleteField,
   doc,
+  getDoc,
   getDocs,
   onSnapshot,
+  query,
   serverTimestamp,
   setDoc,
   updateDoc,
+  where,
   writeBatch,
 } from 'firebase/firestore';
 import { EmailAuthProvider, deleteUser, reauthenticateWithCredential } from 'firebase/auth';
@@ -29,6 +37,8 @@ import { resolveData } from './money';
 const userDoc = (uid) => doc(db, 'users', uid);
 const txCol = (uid) => collection(db, 'users', uid, 'transactions');
 const goalCol = (uid) => collection(db, 'users', uid, 'goals');
+const sharedCol = () => collection(db, 'sharedGoals');
+const sharedDoc = (id) => doc(db, 'sharedGoals', id);
 const cacheKey = (uid) => `monee-cache-${uid}`;
 const legacyHandledKey = (uid) => `monee-legacy-handled-${uid}`;
 
@@ -46,6 +56,19 @@ const cleanGoal = (g) => ({
   createdAt: 0,
   ...g,
   icon: g.icon || LEGACY_GOAL_EMOJI[g.emoji] || 'target',
+});
+
+const cleanShared = (g) => ({
+  members: [],
+  invited: [],
+  people: {},
+  invitedNames: {},
+  contributions: {},
+  accounts: {},
+  deadline: null,
+  image: null,
+  ...g,
+  icon: g.icon || 'target',
 });
 
 // Writes many changes in groups (Firestore allows up to 500 per batch)
@@ -75,14 +98,15 @@ export function useMoneeData(uid) {
 
   useEffect(() => {
     let alive = true;
-    const parts = {};
+    // Shared goals start empty, so the app doesn't wait for them (or break if they can't load)
+    const parts = { shared: [], invites: [] };
     const pending = {};
 
     // 1. Show the last saved copy straight away (works offline too)
     AsyncStorage.getItem(cacheKey(uid))
       .then((raw) => {
         // resolveData also upgrades copies saved by older versions (before accounts existed)
-        if (alive && raw) setData((d) => d ?? resolveData(JSON.parse(raw)));
+        if (alive && raw) setData((d) => d ?? resolveData({ ...JSON.parse(raw), uid }));
       })
       .catch(() => {});
 
@@ -92,8 +116,11 @@ export function useMoneeData(uid) {
       // resolveData links every entry and goal to one of your accounts (see money.js)
       const next = resolveData({
         ...parts.user,
+        uid,
         transactions: parts.transactions,
         goals: parts.goals,
+        sharedGoals: parts.shared,
+        invites: parts.invites,
       });
       setData(next);
       setError(null);
@@ -119,6 +146,7 @@ export function useMoneeData(uid) {
             accounts: v.accounts || [],
             mainAccountId: v.mainAccountId || null,
             onboarded: !!v.onboarded,
+            moneeId: v.moneeId || null,
           };
           pending.user = notSynced(snap);
           publish();
@@ -148,6 +176,26 @@ export function useMoneeData(uid) {
           publish();
         },
         onErr
+      ),
+      // Shared goals you're in, and ones you're invited to.
+      // If these fail (e.g. the new security rules aren't published yet), the rest of the app still works.
+      onSnapshot(
+        query(sharedCol(), where('members', 'array-contains', uid)),
+        (snap) => {
+          parts.shared = snap.docs
+            .map((d) => cleanShared({ ...d.data(), id: d.id }))
+            .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+          publish();
+        },
+        (e) => console.warn('Shared goals unavailable:', e.code, e.message)
+      ),
+      onSnapshot(
+        query(sharedCol(), where('invited', 'array-contains', uid)),
+        (snap) => {
+          parts.invites = snap.docs.map((d) => cleanShared({ ...d.data(), id: d.id }));
+          publish();
+        },
+        (e) => console.warn('Invites unavailable:', e.code, e.message)
       ),
     ];
 
@@ -183,6 +231,45 @@ export function useMoneeData(uid) {
       saveSettings: (fields) => setDoc(userDoc(uid), fields, { merge: true }).catch(fail),
       setMainAccount: (id) => setDoc(userDoc(uid), { mainAccountId: id }, { merge: true }).catch(fail),
       wipeEntries: () => wipeUserData(uid, { removeUserDoc: false }).catch(fail),
+
+      // ----- Shared goals (saving together with friends) -----
+      // Each person's part is stored separately: contributions = { theirUid: amount }.
+      // You can only change your own part; the security rules check that.
+      addSharedGoal: (g, myName, accountId) =>
+        setDoc(sharedDoc(g.id), {
+          name: g.name,
+          target: g.target,
+          icon: g.icon,
+          image: g.image || null,
+          deadline: g.deadline || null,
+          createdAt: g.createdAt,
+          ownerId: uid,
+          members: [uid],
+          invited: [],
+          people: { [uid]: { name: myName || '' } },
+          invitedNames: {},
+          contributions: { [uid]: 0 },
+          accounts: { [uid]: accountId },
+        }).catch(fail),
+      setMyShare: (goalId, amount) =>
+        updateDoc(sharedDoc(goalId), { [`contributions.${uid}`]: Math.max(0, amount) }).catch(fail),
+      inviteToShared: (goalId, friend) =>
+        updateDoc(sharedDoc(goalId), {
+          invited: arrayUnion(friend.uid),
+          [`invitedNames.${friend.uid}`]: friend.name || '',
+        }),
+      acceptInvite: (goalId, myName, accountId) =>
+        updateDoc(sharedDoc(goalId), {
+          invited: arrayRemove(uid),
+          members: arrayUnion(uid),
+          [`people.${uid}`]: { name: myName || '' },
+          [`contributions.${uid}`]: 0,
+          [`accounts.${uid}`]: accountId,
+        }).catch(fail),
+      declineInvite: (goalId) => updateDoc(sharedDoc(goalId), { invited: arrayRemove(uid) }).catch(fail),
+      leaveShared: (goalId) => leaveShared(uid, goalId).catch(fail),
+      deleteShared: (goalId) => deleteDoc(sharedDoc(goalId)).catch(fail),
+      setSharedImage: (goalId, image) => updateDoc(sharedDoc(goalId), { image: image || null }).catch(fail),
     };
   }, [uid]);
 
@@ -191,9 +278,30 @@ export function useMoneeData(uid) {
 
 /* ---------- Deleting ---------- */
 
+// Leaving a shared goal takes your part out of it (your friends keep theirs)
+function leaveShared(uid, goalId) {
+  return updateDoc(sharedDoc(goalId), {
+    members: arrayRemove(uid),
+    [`people.${uid}`]: deleteField(),
+    [`contributions.${uid}`]: deleteField(),
+    [`accounts.${uid}`]: deleteField(),
+  });
+}
+
 async function wipeUserData(uid, { removeUserDoc }) {
   const [txSnap, goalSnap] = await Promise.all([getDocs(txCol(uid)), getDocs(goalCol(uid))]);
   const writes = [...txSnap.docs, ...goalSnap.docs].map((d) => (b) => b.delete(d.ref));
+
+  // Shared goals: delete the ones you made, leave the ones a friend made
+  try {
+    const shared = await getDocs(query(sharedCol(), where('members', 'array-contains', uid)));
+    for (const d of shared.docs) {
+      if (d.data().ownerId === uid) writes.push((b) => b.delete(d.ref));
+      else await leaveShared(uid, d.id);
+    }
+  } catch (e) {
+    console.warn('Couldn’t clean up shared goals', e);
+  }
   // Your settings (name, budgets, accounts) stay unless the whole account is being deleted
   if (removeUserDoc) writes.push((b) => b.delete(userDoc(uid)));
   await commitInChunks(writes);
@@ -207,7 +315,10 @@ export async function deleteAccountAndData(user, { password, reauthWithGoogle } 
   } else {
     await reauthWithGoogle(user);
   }
+  // Free up your Monee ID too
+  const code = (await getDoc(userDoc(user.uid)).catch(() => null))?.data()?.moneeId;
   await wipeUserData(user.uid, { removeUserDoc: true });
+  if (code) await deleteDoc(doc(db, 'codes', code)).catch(() => {});
   await AsyncStorage.multiRemove([cacheKey(user.uid), legacyHandledKey(user.uid)]).catch(() => {});
   await deleteUser(user);
 }

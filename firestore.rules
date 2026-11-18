@@ -3,12 +3,113 @@ rules_version = '2';
 // Monee security rules
 // Paste this into: Firebase console → Firestore Database → Rules → Publish
 //
-// Meaning: you can only read or write inside users/{your own user id},
-// and only while you're logged in. Everything else is locked.
+// 1. users/{your id}/…  only you can read or write your own data (same as before).
+// 2. codes/{MONEEID}    anyone logged in can look up ONE code they know (to invite a friend),
+//                       but nobody can list all codes. Only you can create or change your own.
+// 3. sharedGoals/{id}   only the people in a goal (and people invited to it) can see it.
+//                       Everyone can only change THEIR OWN part (how much they put in).
+//                       Only the person who made the goal can rename it, change it or delete it.
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // ---------- 1. Your own data ----------
     match /users/{userId}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if signedIn() && request.auth.uid == userId;
+    }
+
+    // ---------- 2. Monee IDs ----------
+    match /codes/{code} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if signedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['uid', 'name'])
+        && code.size() == 6;
+      allow update: if signedIn()
+        && resource.data.uid == request.auth.uid
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['uid', 'name']);
+      allow delete: if signedIn() && resource.data.uid == request.auth.uid;
+    }
+
+    // ---------- 3. Shared goals ----------
+    match /sharedGoals/{goalId} {
+      function me() { return request.auth.uid; }
+      function before() { return resource.data; }
+      function after() { return request.resource.data; }
+      function changed() { return after().diff(before()).affectedKeys(); }
+
+      // Inside a map like contributions = { uid: amount }, only MY entry changed
+      function onlyMyEntry(field) {
+        return !(field in changed())
+          || after()[field].diff(before()[field]).affectedKeys().hasOnly([me()]);
+      }
+      function myPartOnly() {
+        return onlyMyEntry('contributions') && onlyMyEntry('accounts') && onlyMyEntry('people');
+      }
+      function validMyAmount() {
+        return !(me() in after().contributions)
+          || (after().contributions[me()] is number && after().contributions[me()] >= 0);
+      }
+      function setOf(list) { return list.toSet(); }
+      function smallGroup() { return after().members.size() + after().invited.size() <= 10; }
+
+      // A member: changes their own part, invites friends, leaves,
+      // and (only the owner) edits the goal's name, target, icon, photo or deadline
+      function memberUpdate() {
+        return me() in before().members
+          && changed().hasOnly(['contributions', 'accounts', 'people', 'invited', 'invitedNames', 'members',
+                                'name', 'target', 'icon', 'image', 'deadline'])
+          && after().ownerId == before().ownerId
+          && myPartOnly()
+          && validMyAmount()
+          && (!changed().hasAny(['name', 'target', 'icon', 'image', 'deadline']) || before().ownerId == me())
+          // invites can only be added (the friend accepts or declines them)
+          && setOf(after().invited).hasAll(setOf(before().invited))
+          && !setOf(after().invited).hasAny(setOf(before().members))
+          && smallGroup()
+          // members can only change by you leaving (and the owner can't leave, they delete instead)
+          && (!('members' in changed())
+              || (before().ownerId != me()
+                  && setOf(after().members) == setOf(before().members).difference([me()].toSet())));
+      }
+
+      // Joining: move yourself from "invited" to "members" and add your own part
+      function acceptInvite() {
+        return me() in before().invited
+          && changed().hasOnly(['invited', 'members', 'people', 'accounts', 'contributions'])
+          && setOf(after().invited) == setOf(before().invited).difference([me()].toSet())
+          && setOf(after().members) == setOf(before().members).union([me()].toSet())
+          && myPartOnly()
+          && validMyAmount();
+      }
+
+      // Saying no: just take yourself off the invite list
+      function declineInvite() {
+        return me() in before().invited
+          && changed().hasOnly(['invited'])
+          && setOf(after().invited) == setOf(before().invited).difference([me()].toSet());
+      }
+
+      allow read: if signedIn() && (me() in before().members || me() in before().invited);
+
+      // Making a goal: you're the owner and the only member
+      allow create: if signedIn()
+        && after().ownerId == me()
+        && after().members == [me()]
+        && after().invited.size() == 0
+        && after().contributions.keys().hasOnly([me()])
+        && after().accounts.keys().hasOnly([me()])
+        && after().people.keys().hasOnly([me()])
+        && after().target is number && after().target > 0;
+
+      allow delete: if signedIn() && before().ownerId == me();
+
+      allow update: if signedIn() && (memberUpdate() || acceptInvite() || declineInvite());
     }
   }
 }

@@ -34,6 +34,7 @@ import SettingsScreen from './src/screens/SettingsScreen';
 import WelcomeModal from './src/WelcomeModal';
 import { DialogHost } from './src/dialog';
 import { googleSignOut, reauthWithGoogle } from './src/googleAuth';
+import { ensureMoneeId } from './src/moneeId';
 
 export default function App() {
   // Load Monee's fonts before showing anything
@@ -144,6 +145,21 @@ function MainApp({ user }) {
     });
   }, [data, syncing, user.uid]);
 
+  // Everyone gets a short Monee ID, so friends can invite them to shared goals (see src/moneeId.js)
+  const myName = data?.profile.name || user.displayName || '';
+  const hasData = !!data && !syncing;
+  const makingId = useRef(false);
+  useEffect(() => {
+    if (!hasData || (!data.moneeId && makingId.current)) return;
+    if (!data.moneeId) makingId.current = true; // only make one, even if this runs twice
+    ensureMoneeId(user.uid, data.moneeId, myName)
+      .catch((e) => {
+        makingId.current = false;
+        console.warn('Monee ID:', e.code, e.message);
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasData, data?.moneeId, myName, user.uid]);
+
   // First time here? Show the welcome popup, which leads into the setup tutorial in Settings
   const [welcomeDone, setWelcomeDone] = useState(false);
   const showWelcome = !!data && !syncing && !data.onboarded && !welcomeDone && !overlay;
@@ -240,7 +256,7 @@ function MainApp({ user }) {
       />
     );
   } else if (tab === 'goals') {
-    content = <GoalsScreen data={data} actions={actions} />;
+    content = <GoalsScreen data={data} actions={actions} myName={myName} />;
   } else {
     content = <InsightsScreen data={data} />;
   }
