@@ -12,6 +12,19 @@ export const EXPENSE_CATS = [
   { key: 'Other', emoji: '📦' },
 ];
 
+// Each spending category's colour in the Insights pie chart (chosen to stand out on the navy card)
+export const CATEGORY_COLORS = {
+  Food: '#F9DC7E',
+  Drinks: '#E8A87C',
+  Transport: '#4FA3C0',
+  School: '#7F9BDB',
+  Fun: '#A9D3EA',
+  Shopping: '#E27D72',
+  'Data & Top-up': '#6FBF9F',
+  Gifts: '#C3A2DA',
+  Other: '#B8C4CF',
+};
+
 export const INCOME_CATS = [
   { key: 'Allowance', emoji: '💵' },
   { key: 'Gift money', emoji: '🧧' },

@@ -1,6 +1,7 @@
 // Log in / Sign up / Forgot password
 import React, { useState } from 'react';
-import { View, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import { View, TouchableOpacity, ScrollView, ActivityIndicator, Image } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 import { Text, TextInput } from '../ui';
 import {
   createUserWithEmailAndPassword,
@@ -10,6 +11,7 @@ import {
 } from 'firebase/auth';
 import { auth } from '../firebase';
 import { createUserProfile } from '../data';
+import { friendlyGoogleError, signInWithGoogle } from '../googleAuth';
 import { C, GRADIENT, styles } from '../styles';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -23,7 +25,7 @@ export function friendlyAuthError(e) {
     case 'auth/invalid-credential':
     case 'auth/wrong-password':
     case 'auth/user-not-found':
-      return 'Wrong email or password. Try again, or tap “Forgot password?”.';
+      return 'Wrong email or password. Try again, or tap “Forgot password?”. If you signed up with Google, tap “Continue with Google”.';
     case 'auth/email-already-in-use':
       return 'There’s already an account with this email. Try logging in instead.';
     case 'auth/weak-password':
@@ -37,6 +39,18 @@ export function friendlyAuthError(e) {
     default:
       return e?.message || 'Something went wrong. Please try again.';
   }
+}
+
+// Google's "G" logo, for the sign-in button
+function GoogleG({ size = 20 }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 48 48">
+      <Path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+      <Path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+      <Path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+      <Path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+    </Svg>
+  );
 }
 
 const COPY = {
@@ -54,6 +68,7 @@ export default function AuthScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
+  const [googleBusy, setGoogleBusy] = useState(false);
 
   const switchMode = (m) => {
     setMode(m);
@@ -94,12 +109,30 @@ export default function AuthScreen() {
     setBusy(false);
   };
 
+  const google = async () => {
+    setError('');
+    setInfo('');
+    setGoogleBusy(true);
+    try {
+      const res = await signInWithGoogle();
+      // First time with Google? Make the Monee profile, using the name from the Google account
+      if (res?.isNewUser) await createUserProfile(res.user.uid, res.user.displayName || '');
+      // App.js notices the login and opens the app by itself
+    } catch (e) {
+      setError(friendlyGoogleError(e));
+    }
+    setGoogleBusy(false);
+  };
+
   return (
     <LinearGradient colors={GRADIENT} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ flex: 1 }}>
     <ScrollView contentContainerStyle={styles.authWrap} keyboardShouldPersistTaps="handled">
-      <Text style={styles.authLogo}>
-        Monee<Text style={styles.authLogoMark}> !</Text>
-      </Text>
+      <Image
+        source={require('../../assets/logo-white.png')}
+        style={styles.authLogoImage}
+        resizeMode="contain"
+        accessibilityLabel="Monee"
+      />
       <Text style={styles.authTag}>Pocket money, sorted.</Text>
 
       <View style={styles.authCard}>
@@ -179,6 +212,31 @@ export default function AuthScreen() {
         <TouchableOpacity style={[styles.button, busy && { opacity: 0.7 }]} onPress={submit} disabled={busy}>
           {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>{COPY[mode].button}</Text>}
         </TouchableOpacity>
+
+        {mode !== 'reset' && (
+          <>
+            <View style={styles.orRow}>
+              <View style={styles.orLine} />
+              <Text style={styles.muted}>or</Text>
+              <View style={styles.orLine} />
+            </View>
+            <TouchableOpacity
+              style={[styles.googleBtn, googleBusy && { opacity: 0.7 }]}
+              onPress={google}
+              disabled={googleBusy || busy}
+              accessibilityLabel="Continue with Google"
+            >
+              {googleBusy ? (
+                <ActivityIndicator color={C.navy} />
+              ) : (
+                <>
+                  <GoogleG size={20} />
+                  <Text style={styles.googleBtnText}>Continue with Google</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </>
+        )}
 
         {mode === 'login' && (
           <TouchableOpacity onPress={() => switchMode('reset')} style={{ alignSelf: 'center', marginTop: 14 }}>

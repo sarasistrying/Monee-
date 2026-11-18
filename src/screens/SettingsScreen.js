@@ -12,6 +12,7 @@ import { AccountIcon, CategoryIcon, Export, Plus, PushPin, SignOut, X } from '..
 import { Chip } from '../components';
 import Avatar from '../Avatar';
 import { pickSmallImage } from '../images';
+import { friendlyGoogleError, hasGoogle, hasPassword } from '../googleAuth';
 
 // The setup tutorial: each step points at one part of this screen
 const STEPS = [
@@ -214,16 +215,19 @@ export default function SettingsScreen({
       ]
     );
 
+  // Google-only accounts confirm by picking their Google account again instead of typing a password
+  const usesPassword = hasPassword(user);
+
   const deleteAccount = async () => {
-    if (!password) return setDeleteError('Type your password to confirm.');
+    if (usesPassword && !password) return setDeleteError('Type your password to confirm.');
     setDeleting(true);
     setDeleteError('');
     try {
       skipSave.current = true;
-      await onDeleteAccount(password);
+      await onDeleteAccount(usesPassword ? password : null);
     } catch (e) {
       skipSave.current = false;
-      setDeleteError(friendlyAuthError(e));
+      setDeleteError(usesPassword ? friendlyAuthError(e) : friendlyGoogleError(e) || 'You closed the Google window. Try again to confirm.');
       setDeleting(false);
     }
   };
@@ -421,6 +425,11 @@ export default function SettingsScreen({
               <Text style={styles.cardTitle}>Login</Text>
               <Text style={styles.muted}>Logged in as</Text>
               <Text style={styles.text}>{user.email}</Text>
+              {hasGoogle(user) && (
+                <Text style={[styles.muted, { marginTop: 2 }]}>
+                  {usesPassword ? 'With Google or your password' : 'With your Google account'}
+                </Text>
+              )}
               <Text style={[styles.muted, { marginTop: 8 }]}>
                 Your entries and goals are saved online, so they show up on any phone you log in on.
               </Text>
@@ -444,17 +453,21 @@ export default function SettingsScreen({
               <View style={[styles.card, styles.warning, { marginTop: 12 }]}>
                 <Text style={styles.cardTitle}>Delete your Monee account?</Text>
                 <Text style={styles.text}>
-                  This erases your login and everything in it, for good. Type your password to confirm.
+                  {usesPassword
+                    ? 'This erases your login and everything in it, for good. Type your password to confirm.'
+                    : 'This erases your login and everything in it, for good. Pick your Google account again to confirm.'}
                 </Text>
-                <TextInput
-                  style={[styles.input, { marginTop: 10 }]}
-                  placeholder="Your password"
-                  placeholderTextColor={C.muted}
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry
-                  autoCapitalize="none"
-                />
+                {usesPassword && (
+                  <TextInput
+                    style={[styles.input, { marginTop: 10 }]}
+                    placeholder="Your password"
+                    placeholderTextColor={C.muted}
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry
+                    autoCapitalize="none"
+                  />
+                )}
                 {!!deleteError && <Text style={styles.errorText}>{deleteError}</Text>}
                 <TouchableOpacity
                   style={[styles.button, { backgroundColor: C.out }, deleting && { opacity: 0.7 }]}
@@ -464,7 +477,9 @@ export default function SettingsScreen({
                   {deleting ? (
                     <ActivityIndicator color="#fff" />
                   ) : (
-                    <Text style={styles.buttonText}>Delete my account forever</Text>
+                    <Text style={styles.buttonText}>
+                      {usesPassword ? 'Delete my account forever' : 'Confirm with Google and delete'}
+                    </Text>
                   )}
                 </TouchableOpacity>
                 <TouchableOpacity

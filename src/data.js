@@ -199,10 +199,14 @@ async function wipeUserData(uid, { removeUserDoc }) {
   await commitInChunks(writes);
 }
 
-// Deletes the account and all its data. Firebase asks for the password again first, for safety.
-export async function deleteAccountAndData(user, password) {
-  const credential = EmailAuthProvider.credential(user.email, password);
-  await reauthenticateWithCredential(user, credential);
+// Deletes the account and all its data. Firebase asks you to prove it's you again first, for safety:
+// with your password, or (for Google accounts) by picking your Google account again via reauthWithGoogle.
+export async function deleteAccountAndData(user, { password, reauthWithGoogle } = {}) {
+  if (password) {
+    await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, password));
+  } else {
+    await reauthWithGoogle(user);
+  }
   await wipeUserData(user.uid, { removeUserDoc: true });
   await AsyncStorage.multiRemove([cacheKey(user.uid), legacyHandledKey(user.uid)]).catch(() => {});
   await deleteUser(user);

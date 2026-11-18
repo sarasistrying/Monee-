@@ -15,7 +15,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#1E3260",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -23,12 +23,18 @@
       "package": "com.sarasistrying.monee"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "name": "Monee",
+      "shortName": "Monee",
+      "themeColor": "#1E3260",
+      "backgroundColor": "#1E3260",
+      "description": "Pocket money, sorted. Scan receipts, track spending and save for your goals."
     },
     "plugins": [
       "expo-sharing",
       "expo-font",
-      "expo-status-bar"
+      "expo-status-bar",
+      "@react-native-google-signin/google-signin"
     ],
     "extra": {
       "eas": {

@@ -33,6 +33,7 @@ import InsightsScreen from './src/screens/InsightsScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import WelcomeModal from './src/WelcomeModal';
 import { DialogHost } from './src/dialog';
+import { googleSignOut, reauthWithGoogle } from './src/googleAuth';
 
 export default function App() {
   // Load Monee's fonts before showing anything
@@ -206,8 +207,8 @@ function MainApp({ user }) {
         actions={actions}
         tutorial={!!overlay.tutorial}
         onExport={() => exportCsv(data.transactions, data.accounts)}
-        onLogout={() => signOut(auth)}
-        onDeleteAccount={(password) => deleteAccountAndData(user, password)}
+        onLogout={() => googleSignOut(user).finally(() => signOut(auth))}
+        onDeleteAccount={(password) => deleteAccountAndData(user, { password, reauthWithGoogle })}
         onClose={() => setOverlay(null)}
       />
     );

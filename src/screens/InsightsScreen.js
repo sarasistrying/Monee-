@@ -4,7 +4,8 @@ import { Text } from '../ui';
 import { C, GRADIENT, styles } from '../styles';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MonthSwitcher, ProgressBar, SectionTitle } from '../components';
-import { MONTHS } from '../constants';
+import { CATEGORY_COLORS, MONTHS } from '../constants';
+import PieChart from '../PieChart';
 import { accountBalances, kindLabel } from '../money';
 import { daysInMonth, formatRp, formatShort, inMonth, shiftMonth } from '../utils';
 import { AccountIcon, CalendarBlank, CategoryIcon, Leaf } from '../icons';
@@ -59,21 +60,46 @@ export default function InsightsScreen({ data }) {
       <Text style={styles.title}>Insights</Text>
       <MonthSwitcher cursor={cursor} setCursor={setCursor} />
 
-      {/* Summary */}
+      {/* Summary: the numbers on the left, where the money went (pie chart) on the right */}
       <LinearGradient colors={GRADIENT} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.card, { padding: 18 }]}>
-        <View style={styles.spaceBetween}>
-          <View>
-            <Text style={{ color: C.sky }}>Money in</Text>
-            <Text style={styles.summaryValue}>{formatRp(s.inc)}</Text>
+        <View style={styles.summaryRow}>
+          <View style={{ flex: 1, gap: 10 }}>
+            <View>
+              <Text style={styles.summaryLabel}>Money in</Text>
+              <Text style={styles.summaryValue} numberOfLines={1} adjustsFontSizeToFit>
+                {formatRp(s.inc)}
+              </Text>
+            </View>
+            <View>
+              <Text style={styles.summaryLabel}>Money out</Text>
+              <Text style={styles.summaryValue} numberOfLines={1} adjustsFontSizeToFit>
+                {formatRp(s.out)}
+              </Text>
+            </View>
+            <View style={[styles.summaryDivider, { marginVertical: 0 }]} />
+            <View>
+              <Text style={styles.summaryLabel}>{net >= 0 ? 'You kept' : 'Spent more than you got by'}</Text>
+              <Text style={[styles.bigNumber, net < 0 && { color: '#FF9C97' }]} numberOfLines={1} adjustsFontSizeToFit>
+                {formatRp(Math.abs(net))}
+              </Text>
+            </View>
           </View>
-          <View>
-            <Text style={{ color: C.sky }}>Money out</Text>
-            <Text style={styles.summaryValue}>{formatRp(s.out)}</Text>
-          </View>
+
+          <PieChart
+            size={124}
+            thickness={18}
+            slices={s.catList.map(([cat, amt]) => ({ key: cat, value: amt, color: CATEGORY_COLORS[cat] || '#B8C4CF' }))}
+          >
+            {s.out > 0 ? (
+              <>
+                <Text style={styles.pieCenterLabel}>spent</Text>
+                <Text style={styles.pieCenterValue}>{formatShort(s.out)}</Text>
+              </>
+            ) : (
+              <Text style={[styles.pieCenterLabel, { textAlign: 'center' }]}>No spending{'\n'}yet</Text>
+            )}
+          </PieChart>
         </View>
-        <View style={styles.summaryDivider} />
-        <Text style={{ color: C.sky }}>{net >= 0 ? 'You kept' : 'You spent more than you got by'}</Text>
-        <Text style={styles.bigNumber}>{formatRp(Math.abs(net))}</Text>
       </LinearGradient>
 
       {/* Monthly budget */}
@@ -132,34 +158,37 @@ export default function InsightsScreen({ data }) {
         </View>
       )}
 
-      {/* Categories */}
+      {/* Categories: the legend for the pie chart, biggest first */}
       <SectionTitle>Where your money went</SectionTitle>
       <View style={styles.card}>
         {s.catList.length === 0 ? (
           <Text style={styles.muted}>No spending this month.</Text>
         ) : (
-          s.catList.map(([cat, amt]) => {
+          s.catList.map(([cat, amt], i) => {
             const budget = data.budgets[cat];
+            const color = CATEGORY_COLORS[cat] || '#B8C4CF';
             return (
-              <View key={cat} style={{ marginBottom: 12 }}>
+              <View key={cat} style={[styles.legendRow, i === s.catList.length - 1 && { borderBottomWidth: 0 }]}>
                 <View style={styles.spaceBetween}>
-                  <View style={styles.rowCenter}>
+                  <View style={[styles.rowCenter, { flex: 1 }]}>
+                    <View style={[styles.legendDot, { backgroundColor: color }]} />
                     <CategoryIcon name={cat} size={18} />
-                    <Text style={styles.text}>{cat}</Text>
+                    <Text style={styles.text} numberOfLines={1}>
+                      {cat}
+                    </Text>
                   </View>
                   <Text style={styles.text}>
-                    {formatRp(amt)} <Text style={styles.muted}>({Math.round((amt / s.out) * 100)}%)</Text>
+                    {formatRp(amt)} <Text style={styles.muted}>{Math.round((amt / s.out) * 100)}%</Text>
                   </Text>
                 </View>
-                <ProgressBar
-                  pct={budget ? (amt / budget) * 100 : (amt / s.out) * 100}
-                  color={budget && amt > budget ? C.out : C.teal}
-                />
                 {budget > 0 && (
-                  <Text style={[styles.muted, { fontSize: 12, marginTop: 2 }]}>
-                    Budget {formatRp(budget)}
-                    {amt > budget ? ` · over by ${formatRp(amt - budget)}` : ''}
-                  </Text>
+                  <>
+                    <ProgressBar pct={(amt / budget) * 100} color={amt > budget ? C.out : C.teal} />
+                    <Text style={[styles.muted, { fontSize: 12, marginTop: 2 }]}>
+                      Budget {formatRp(budget)}
+                      {amt > budget ? ` · over by ${formatRp(amt - budget)}` : ''}
+                    </Text>
+                  </>
                 )}
               </View>
             );
