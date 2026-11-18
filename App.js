@@ -21,7 +21,7 @@ import { auth, firebaseReady } from './src/firebase';
 import { useMoneeData, deleteAccountAndData, getLegacyData, importLegacyData, skipLegacyData } from './src/data';
 import { C, styles } from './src/styles';
 import { TabBar } from './src/components';
-import { exportCsv } from './src/utils';
+import { exportSpreadsheet } from './src/exportSheet';
 
 import AuthScreen from './src/screens/AuthScreen';
 import HomeScreen from './src/screens/HomeScreen';
@@ -222,7 +222,7 @@ function MainApp({ user }) {
         user={user}
         actions={actions}
         tutorial={!!overlay.tutorial}
-        onExport={() => exportCsv(data.transactions, data.accounts)}
+        onExport={() => exportSpreadsheet(data, myName)}
         onLogout={() => googleSignOut(user).finally(() => signOut(auth))}
         onDeleteAccount={(password) => deleteAccountAndData(user, { password, reauthWithGoogle })}
         onClose={() => setOverlay(null)}

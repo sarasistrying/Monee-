@@ -425,7 +425,7 @@ export default function SettingsScreen({
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Spreadsheet export</Text>
               <Text style={[styles.muted, { marginBottom: 4 }]}>
-                Saves all your entries as a CSV file you can open in Google Sheets or Excel.
+                A designed spreadsheet with your insights and every entry. Open it in Google Sheets or Excel.
               </Text>
               <TouchableOpacity style={styles.button} onPress={onExport}>
                 <View style={styles.btnContent}>
