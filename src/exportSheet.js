@@ -195,6 +195,7 @@ function buildSheet(data, name) {
   // ---------- Insights: summary ----------
   const section = (title) => put([str('A', title, st.section), ...[...'BCDEFGH'].map((c) => str(c, '', st.sectionLine))], 26);
   section('Insights');
+  const insightsTop = r + 1; // the chart sits to the right of these rows
   put([str('A', '', st.colHead), str('B', `${FULL_MONTHS[m]} ${y}`, st.colHeadRight), str('C', 'All time', st.colHeadRight)], 20);
   put([str('A', 'Money in', st.label), num('B', mon.inc, st.moneyIn), num('C', all.inc, st.moneyIn)]);
   put([str('A', 'Money out', st.label), num('B', mon.out, st.moneyOut), num('C', all.out, st.moneyOut)]);
@@ -218,12 +219,14 @@ function buildSheet(data, name) {
     ]);
   }
   put([str('A', `Days left in ${FULL_MONTHS[m]}`, st.label), num('B', daysInMonth(y, m) - daysSoFar + 1, st.textBold)]);
+  const insightsEnd = r;
   blank(14);
 
   // ---------- Where your money went ----------
   section(`Where your money went · ${FULL_MONTHS[m]}`);
   put([str('A', 'Category', st.colHead), str('B', 'Spent', st.colHeadRight), str('C', 'Share', st.colHeadRight)], 20);
   if (!catList.length) put([str('A', 'No spending yet this month', st.note)]);
+  const catFirst = r + 1; // the pie chart reads its numbers from these rows
   catList.forEach(([cat, amt]) =>
     put([str('A', cat, catStyle(cat)), num('B', amt, st.money), num('C', mon.out ? amt / mon.out : 0, st.percent)])
   );
@@ -289,13 +292,81 @@ ${tx.length ? `<autoFilter ref="A${headRow}:H${lastRow}"/>` : ''}
 <mergeCells count="${merges.length}">${merges.map((m2) => `<mergeCell ref="${m2}"/>`).join('')}</mergeCells>
 <pageMargins left="0.5" right="0.5" top="0.6" bottom="0.6" header="0.3" footer="0.3"/>
 <pageSetup orientation="landscape" fitToWidth="1" fitToHeight="0"/>
+${catList.length ? '<drawing r:id="rId1"/>' : ''}
 </worksheet>`;
 
-  return { sheet, styles: S.xml(), headRow, lastRow, hasEntries: tx.length > 0 };
+  const chart = catList.length
+    ? { cats: catList, first: catFirst, last: catFirst + catList.length - 1, top: insightsTop, end: insightsEnd, month: FULL_MONTHS[m] }
+    : null;
+  return { sheet, styles: S.xml(), headRow, lastRow, hasEntries: tx.length > 0, chart };
 }
 
+/* ---------- The pie (doughnut) chart ---------- */
+// Excel and Google Sheets draw it themselves from the category rows, using these colours.
+const hex6 = (c) => c.replace('#', '').toUpperCase();
+const lexend = (sz, color, bold = false) =>
+  `<a:defRPr sz="${sz}" b="${bold ? 1 : 0}"><a:solidFill><a:srgbClr val="${color}"/></a:solidFill><a:latin typeface="${FONT}"/><a:cs typeface="${FONT}"/></a:defRPr>`;
+const txPr = (sz, color, bold) =>
+  `<c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr>${lexend(sz, color, bold)}</a:pPr><a:endParaRPr lang="en-US"/></a:p></c:txPr>`;
+
+function chartXml({ cats, first, last, month }) {
+  const white = '<a:ln w="25400"><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill></a:ln>';
+  const points = cats
+    .map(
+      ([cat], i) =>
+        `<c:dPt><c:idx val="${i}"/><c:bubble3D val="0"/><c:spPr><a:solidFill><a:srgbClr val="${hex6(CATEGORY_COLORS[cat] || '#B8C4CF')}"/></a:solidFill>${white}</c:spPr></c:dPt>`
+    )
+    .join('');
+  const catCache = cats.map(([cat], i) => `<c:pt idx="${i}"><c:v>${esc(cat)}</c:v></c:pt>`).join('');
+  const valCache = cats.map(([, amt], i) => `<c:pt idx="${i}"><c:v>${amt}</c:v></c:pt>`).join('');
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+<c:roundedCorners val="0"/>
+<c:chart>
+<c:title><c:tx><c:rich><a:bodyPr/><a:lstStyle/><a:p><a:pPr>${lexend(1200, '1E3260', true)}</a:pPr><a:r><a:rPr lang="en-US" sz="1200" b="1"><a:solidFill><a:srgbClr val="1E3260"/></a:solidFill><a:latin typeface="${FONT}"/></a:rPr><a:t>Where your money went · ${esc(month)}</a:t></a:r></a:p></c:rich></c:tx><c:overlay val="0"/></c:title>
+<c:autoTitleDeleted val="0"/>
+<c:plotArea><c:layout/>
+<c:doughnutChart><c:varyColors val="1"/>
+<c:ser><c:idx val="0"/><c:order val="0"/><c:tx><c:v>Spent</c:v></c:tx>
+<c:spPr>${white}</c:spPr>
+${points}
+<c:dLbls><c:numFmt formatCode="0%" sourceLinked="0"/><c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>${txPr(900, '1E3260', true)}<c:showLegendKey val="0"/><c:showVal val="0"/><c:showCatName val="0"/><c:showSerName val="0"/><c:showPercent val="1"/><c:showBubbleSize val="0"/><c:showLeaderLines val="1"/></c:dLbls>
+<c:cat><c:strRef><c:f>Monee!$A$${first}:$A$${last}</c:f><c:strCache><c:ptCount val="${cats.length}"/>${catCache}</c:strCache></c:strRef></c:cat>
+<c:val><c:numRef><c:f>Monee!$B$${first}:$B$${last}</c:f><c:numCache><c:formatCode>General</c:formatCode><c:ptCount val="${cats.length}"/>${valCache}</c:numCache></c:numRef></c:val>
+</c:ser>
+<c:firstSliceAng val="0"/><c:holeSize val="55"/>
+</c:doughnutChart>
+<c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>
+</c:plotArea>
+<c:legend><c:legendPos val="r"/><c:overlay val="0"/>${txPr(1000, '1A2540')}</c:legend>
+<c:plotVisOnly val="1"/><c:dispBlanksAs val="gap"/>
+</c:chart>
+<c:spPr><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill><a:ln><a:noFill/></a:ln></c:spPr>
+${txPr(1000, '1A2540')}
+</c:chartSpace>`;
+}
+
+// Where the chart sits: to the right of the Insights table (columns D to G)
+function drawingXml({ top, end }) {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+<xdr:twoCellAnchor editAs="oneCell">
+<xdr:from><xdr:col>3</xdr:col><xdr:colOff>228600</xdr:colOff><xdr:row>${top - 1}</xdr:row><xdr:rowOff>63500</xdr:rowOff></xdr:from>
+<xdr:to><xdr:col>7</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>${end}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to>
+<xdr:graphicFrame macro=""><xdr:nvGraphicFramePr><xdr:cNvPr id="2" name="Where your money went"/><xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr>
+<xdr:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></xdr:xfrm>
+<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart"><c:chart xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="rId1"/></a:graphicData></a:graphic>
+</xdr:graphicFrame><xdr:clientData/></xdr:twoCellAnchor>
+</xdr:wsDr>`;
+}
+
+const rels = (target, type) => `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/${type}" Target="${target}"/>
+</Relationships>`;
+
 export function buildXlsx(data, name) {
-  const { sheet, styles, headRow, lastRow, hasEntries } = buildSheet(data, name);
+  const { sheet, styles, headRow, lastRow, hasEntries, chart } = buildSheet(data, name);
   const files = {
     '[Content_Types].xml': `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
@@ -304,6 +375,8 @@ export function buildXlsx(data, name) {
 <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
 <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
 <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
+${chart ? `<Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>
+<Override PartName="/xl/charts/chart1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/>` : ''}
 </Types>`,
     '_rels/.rels': `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
@@ -322,6 +395,12 @@ ${hasEntries ? `<definedNames><definedName name="_xlnm._FilterDatabase" localShe
     'xl/styles.xml': styles,
     'xl/worksheets/sheet1.xml': sheet,
   };
+  if (chart) {
+    files['xl/worksheets/_rels/sheet1.xml.rels'] = rels('../drawings/drawing1.xml', 'drawing');
+    files['xl/drawings/drawing1.xml'] = drawingXml(chart);
+    files['xl/drawings/_rels/drawing1.xml.rels'] = rels('../charts/chart1.xml', 'chart');
+    files['xl/charts/chart1.xml'] = chartXml(chart);
+  }
   const zipped = {};
   Object.entries(files).forEach(([path, text]) => (zipped[path] = strToU8(text)));
   return zipSync(zipped, { level: 6 });
